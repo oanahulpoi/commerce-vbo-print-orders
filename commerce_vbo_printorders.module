@@ -179,8 +179,14 @@ function commerce_vbo_printorders_commerce_order_view($order, $view_mode) {
     $custom_date_format = !empty($settings['invoice_date_format']) ? $settings['invoice_date_format'] : 'Y-m-d';
     $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
 
-    $order->content['no'] = $order->order_number;
-    $order->content['id'] = $order->order_id;
+    $order->content['order_number'] = [
+        '#value' => $order->order_number,
+        '#markup' => t('Order No.: @id', array('@id' => $order->order_id)),
+    ];
+    $order->content['order_id'] = [
+        '#value' => $order->order_id,
+        '#markup' => t('Order ID.: @id', array('@id' => $order->order_id)),
+    ];
     $order->content['order_created_date']['#markup'] = format_date($order->created, 'custom', 'j F Y, H:i');
 
     // set the commerce customer billing info
@@ -255,31 +261,46 @@ function commerce_vbo_printorders_commerce_order_view($order, $view_mode) {
         $order->content['invoice_header_date'] = array(
             '#markup' => $invoice_header_date_text,
         );
-        $order->content['order_number'] = array(
+/*        $order->content['order_number'] = array(
             '#markup' => t('Invoice No.: @id', array('@id' => $order->order_number)),
         );
         $order->content['order_id'] = array(
             '#markup' => t('Order No.: @id', array('@id' => $order->order_id)),
-        );
+        );*/
         $order->content['invoice_logo'] = array(
             '#value' => variable_get('commerce_billy_pdf_logo', 'misc/druplicon.png'),
         );
     }
     if ($view_mode == "order") { // only when printing orders
 
-		$all_orders = commerce_order_load_multiple(array(), array('uid' => $order->uid));
-		//print '<pre>' . print_r($all_orders, true) . '</pre>';
-		unset($all_orders[$current_order_id]); // remove current order from array
-		$has_completed_orders = FALSE;
-		$has_cumulated_orders = FALSE;
-		$cumulated_orders_text = '';
+        $customer_message_on_order = '';
+        if ($order_wrapper->field_mesaj_order->value() != '') {
+            $customer_message_on_order = '<strong>Comentariu client</strong>: <br/>';
+            $customer_message_on_order .= $order_wrapper->field_mesaj_order->value();
+        }
+        $order->content['customer_message_on_order'] = array(
+            '#markup' => $customer_message_on_order,
+        );
 
-		foreach($all_orders as $o) {
+        // check if the order owner has purchased products from the store before
+        // check if the current order is an order that is cumulated (contains products from other orders) (we cumulate orders, from the current season, of the same user)
+        $all_orders = commerce_order_load_multiple(array(), array('uid' => $order->uid));
+        unset($all_orders[$order->order_id]); // remove current order from array
+        $has_completed_orders = FALSE;
+        $has_cumulated_orders = FALSE;
+        $cumulated_orders_text = '';
+        $months_in_season = 5;
+
+        $older_completed_orders_text = 'Nu mai are comenzi finalizate.';
+
+        foreach($all_orders as $o) {
+            // check if the order owner has purchased products from the store before
             if($o->status == 'completed') {
                 $has_completed_orders = TRUE;
                 $comenzi_finalizate_created_date[] = format_date($o->created, 'custom', 'M Y');
             }
-            elseif($o->status == 'cumulata' && $o->created >= strtotime('- ' . $nr_luni_sezon . 'month') && $o->created >= $order->created) { // comanda cumulata este din sezonul curent -> este o comanda care a fost cumulata la comanda curenta -> putem extrage mesajul
+            // check if the current order is an order that is cumulated
+            elseif($o->status == 'cumulata' && $o->created >= strtotime('- ' . $months_in_season . 'month') && $o->created >= $order->created) { // comanda cumulata este din sezonul curent -> este o comanda care a fost cumulata la comanda curenta -> putem extrage mesajul
                 $has_cumulated_orders = TRUE;
                 if(!empty($o->field_mesaj_order)) {
                     //print '<pre>' . print_r($all_orders, true) . '</pre>';
@@ -287,8 +308,20 @@ function commerce_vbo_printorders_commerce_order_view($order, $view_mode) {
                 }
             }
         }
-		if($has_completed_orders) print '<h3>Comenzi finalizate:</h3>' . implode(', ', $comenzi_finalizate_created_date);
-        else print '<h3>Nu mai are comenzi finalizate.</h3>';
+
+		if($has_completed_orders) {
+            $older_completed_orders_text = 'Comenzi finalizate: ' . implode(', ', $comenzi_finalizate_created_date);
+        }
+        $order->content['older_completed_orders_text'] = array(
+            '#markup' => $older_completed_orders_text,
+        );
+
+        if($has_cumulated_orders) {
+            $cumulated_orders_text = '<strong>Comentarii de pe comenzile cumulate (la aceasta comanda):</strong> <br/>' . $cumulated_orders_text;
+        }
+        $order->content['cumulated_orders_text'] = array(
+            '#markup' => $cumulated_orders_text,
+        );
 
     }
 }

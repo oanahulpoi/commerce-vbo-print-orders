@@ -27,7 +27,7 @@
   </div>
   
   <div class="invoice-info">
-  	  <div class="invoice-number"><?php print t('Invoice') . ': ' . render($content['no']); ?></div>
+  	  <div class="invoice-number"><?php print t('Invoice') . ': ' . render($content['order_number']); ?></div>
       <div class="invoice-date">Data: <?php print render($content['invoice_header_date']); ?></div>
   </div>
   
@@ -47,7 +47,7 @@
   	<?php print render($content['invoice_text']); ?>
     <br/>
     <p>
-        Facturat în baza comenzii numărul <?php print render($content['id']); ?> din <?php print render($content['order_created_date']); ?> plasată pe zdravan.ro.
+        Facturat în baza comenzii numărul <?php print render($content['order_id']); ?> din <?php print render($content['order_created_date']); ?> plasată pe zdravan.ro.
         <br/>
         Factura circulă fără semnătură și ștampilă în original, conform Legii 571/2003, privind Codul Fiscal, art. 155 (6).
 	</p>
