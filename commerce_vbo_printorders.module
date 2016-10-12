@@ -1,0 +1,251 @@
+<?php
+/**
+ * Implements hook_menu().
+ */
+function commerce_vbo_printorders_menu() {
+
+	$items = array();
+
+	$items['admin/commerce/orders/print-all/%'] = array(
+		'title' => 'Bulk Printing Orders',
+		'description' => 'Outputs printable orders for each id passed',
+		'page callback' => '_commerce_vbo_print_orders',
+		'page arguments' => array(4),
+		'access callback' => 'commerce_vbo_printorders_print_view_access',
+		'weight' => 10,
+	);
+
+	$items['admin/commerce/invoices/print-all/%'] = array(
+		'title' => 'Bulk Printing Invoices',
+		'description' => 'Outputs printable invoices for each id passed',
+		'page callback' => '_commerce_vbo_print_invoices',
+		'page arguments' => array(4),
+		'access callback' => 'commerce_vbo_printorders_print_view_access',
+		'weight' => 10,
+	);
+
+	return $items;
+}
+
+/**
+ * Implements hook_action_info().
+ */
+function commerce_vbo_printorders_action_info() {
+	return array(
+		'_commerce_vbo_print_orders_action' => array( // declare the function name to be used.
+			'type' => 'entity', // can be node, comment etc
+			'label' => t('Outputs printable orders for each id passed'), // the name of the operation which is displayed to the user.
+			'configurable' => FALSE,
+			'aggregate' => TRUE,
+			'permissions' => array('administer commerce_order entities'),
+		),
+		'_commerce_vbo_print_invoices_action' => array( // declare the function name to be used.
+			'type' => 'entity', // can be node, comment etc
+			'label' => t('Outputs printable invoices for each id passed'), // the name of the operation which is displayed to the user.
+			'configurable' => FALSE,
+			'aggregate' => TRUE,
+			'permissions' => array('administer commerce_order entities'),
+		),
+	);
+}
+
+/**
+ * Implementation of a Drupal action.
+ * Passes selected ids as arguments to a view that displays selected orders.
+ */
+function _commerce_vbo_print_orders_action($entities) {
+
+	$arguments = implode(',', array_keys($entities));
+	_commerce_vbo_printorders_goto_page('orders', $arguments);
+}
+
+/**
+ * Implementation of a Drupal action.
+ * Passes selected ids as arguments to a view that displays selected invoices.
+ */
+function _commerce_vbo_print_invoices_action($entities) {
+
+	$arguments = implode(',', array_keys($entities));
+	_commerce_vbo_printorders_goto_page('invoices', $arguments);
+}
+
+/**
+ * Redirects to the specific page, with the given arguments
+ */
+function _commerce_vbo_printorders_goto_page($page_type, $arguments) {
+	$base_url = 'admin/commerce/' . $page_type . '/print-all';
+	// Add a trailing slash if missing.
+	if (substr($base_url, -1, 1) != '/') {
+		$base_url .= '/';
+	}
+	drupal_goto($base_url . $arguments);
+}
+
+/**
+ * Outputs a printable view of orders
+ */
+function _commerce_vbo_print_orders($ids) {
+
+	$variables['viewed_orders'] = array();
+
+    $css_file = drupal_get_path('module', 'commerce_vbo_printorders') . '/css/orders.css';
+    $variables['inline_css'] = file_get_contents($css_file);
+
+	$orderids = explode(',', $ids);
+	foreach($orderids as $orderid) {
+		$order = commerce_order_load($orderid);
+        $variables['viewed_orders'][] = entity_view('commerce_order', array($order->order_id => $order), 'order', NULL, TRUE);
+	}
+
+
+	
+	print theme('commerce_vbo_print_orders_page', $variables);
+}
+
+/**
+ * Outputs a printable view of invoices
+ */
+function _commerce_vbo_print_invoices($ids) {
+
+	$variables['viewed_orders'] = array();
+
+    $css_file = drupal_get_path('module', 'commerce_vbo_printorders') . '/css/invoices.css';
+    $variables['inline_css'] = file_get_contents($css_file);
+
+	$orderids = explode(',', $ids);
+
+	foreach($orderids as $orderid) {
+		$order = commerce_order_load($orderid);
+        $invoiced_orders_statuses = ['completed', 'completed_zdravan', 'completed_zdv_merti', 'invoiced'];
+        if (!in_array($order->status, $invoiced_orders_statuses)) {
+            drupal_set_message(t('Bulk printing invoices action is available only for orders with one of the following statuses: %statuses.', ['%statuses' => implode(', ', $invoiced_orders_statuses)]));
+            drupal_goto('admin/commerce/orders');
+            return;
+        }
+
+		// check order status is invoiced
+        $variables['viewed_orders'][] = entity_view('commerce_order', array($order->order_id => $order), 'invoice', NULL, TRUE);
+	}
+	
+	print theme('commerce_vbo_print_invoices_page', $variables);
+}
+
+/**
+ * Access callback for the invoices page.
+ */
+function commerce_vbo_printorders_print_view_access() {
+	if (user_access('administer commerce_order entities')) {
+		return TRUE;
+	}
+	else {
+		return FALSE;
+	}
+}
+
+/**
+ * Implements hook_theme().
+ */
+function commerce_vbo_printorders_theme() {
+	// Register the template specific for the commerce order.
+	$items['commerce_vbo_print__order'] = array(
+	  'render element' => 'elements',
+	  'template' => 'commerce-vbo-print--order',
+	  'path' => drupal_get_path('module', 'commerce_vbo_printorders') . '/templates',
+	);
+	// Register the template specific for the commerce invoice
+	$items['commerce_vbo_print__invoice'] = array(
+	  'render element' => 'elements',
+	  'template' => 'commerce-vbo-print--invoice',
+	  'path' => drupal_get_path('module', 'commerce_vbo_printorders') . '/templates',
+	);
+	$items['commerce_vbo_print_orders_page'] = array(
+	  'variables' => array('viewed_orders' => array(), 'inline_css' => ''),
+	  'template' => 'commerce-vbo-print--orders-page',
+	  'path' => drupal_get_path('module', 'commerce_vbo_printorders') . '/templates',
+	);
+	$items['commerce_vbo_print_invoices_page'] = array(
+	  'variables' => array('viewed_orders' => array(), 'inline_css' => ''),
+	  'template' => 'commerce-vbo-print--invoices-page',
+	  'path' => drupal_get_path('module', 'commerce_vbo_printorders') . '/templates',
+	);
+	return $items;
+}
+
+/**
+ * Implements hook_commerce_order_view().
+ */
+function commerce_vbo_printorders_commerce_order_view($order, $view_mode) {
+
+    // Add content variables
+    $settings = variable_get('commerce_billy_pdf_text_settings', array());
+    $custom_date_format = !empty($settings['invoice_date_format']) ? $settings['invoice_date_format'] : 'Y-m-d';
+    if ($view_mode == "invoice") {
+        $order->content['invoice_footer'] = array(
+            '#markup' => isset($settings['invoice_footer']) ? $settings['invoice_footer'] : '',
+        );
+        $order->content['invoice_header'] = array(
+            '#markup' => isset($settings['invoice_header']) ? $settings['invoice_header'] : '',
+        );
+        $order->content['invoice_text'] = array(
+            '#markup' => isset($settings['invoice_text']) ? $settings['invoice_text'] : '',
+        );
+        $date_field_name = 'field_commerce_billy_i_date';
+        $date_formatted = format_date($order->{$date_field_name}[LANGUAGE_NONE][0]['value'], 'custom', $custom_date_format);
+        if (!empty($settings['invoice_location'])) {
+            $invoice_header_date_text = t('@location, @date', array('@location' => $settings['invoice_location'], '@date' => $date_formatted));
+        }
+        else {
+            $invoice_header_date_text = $date_formatted;
+        }
+        $order->content['invoice_header_date'] = array(
+            '#markup' => $invoice_header_date_text,
+        );
+        $order->content['order_number'] = array(
+            '#markup' => t('Invoice No.: @id', array('@id' => $order->order_number)),
+        );
+        $order->content['order_id'] = array(
+            '#markup' => t('Order No.: @id', array('@id' => $order->order_id)),
+        );
+        $order->content['invoice_logo'] = array(
+            '#value' => variable_get('commerce_billy_pdf_logo', 'misc/druplicon.png'),
+        );
+    }
+}
+
+/**
+ * Implements hook_preprocess_entity().
+ *
+ * Adds theme hook suggestions for the pdf and canceled view modes, allowing the
+ * commerce_billy_pdf templates to be used for orders of all bundles.
+ */
+function commerce_vbo_printorders_preprocess_entity(&$variables) {
+	$entity_type = $variables['entity_type'];
+	$view_mode = $variables['view_mode'];
+    $order_view_modes = ['order', 'invoice'];
+	if ($entity_type == 'commerce_order' && in_array($view_mode, $order_view_modes)) {
+		$variables['theme_hook_suggestions'][] = 'commerce_vbo_print__' . $view_mode;
+	}
+}
+
+/**
+ * Implements hook_entity_info_alter().
+ */
+function commerce_vbo_printorders_entity_info_alter(&$info) {
+  $info['commerce_order']['view modes']['order'] = array(
+    'label' => t('Order'),
+    'custom settings' => FALSE,
+  );
+  $info['commerce_order']['view modes']['invoice'] = array(
+    'label' => t('Order'),
+    'custom settings' => FALSE,
+  );
+}
+
+/**
+ * Implements hook_admin_paths_alter().
+ * Treat print orders and print invoices pages as non-administrative pages.
+ */
+function commerce_vbo_printorders_admin_paths_alter(&$paths) {
+	$paths['admin/commerce/orders/print-all/*'] = FALSE;
+	$paths['admin/commerce/invoices/print-all/*'] = FALSE;
+}
