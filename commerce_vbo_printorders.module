@@ -97,8 +97,6 @@ function _commerce_vbo_print_orders($ids) {
         $variables['viewed_orders'][] = entity_view('commerce_order', array($order->order_id => $order), 'order', NULL, TRUE);
 	}
 
-
-	
 	print theme('commerce_vbo_print_orders_page', $variables);
 }
 
@@ -179,7 +177,64 @@ function commerce_vbo_printorders_commerce_order_view($order, $view_mode) {
     // Add content variables
     $settings = variable_get('commerce_billy_pdf_text_settings', array());
     $custom_date_format = !empty($settings['invoice_date_format']) ? $settings['invoice_date_format'] : 'Y-m-d';
-    if ($view_mode == "invoice") {
+    $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+
+    $order->content['no'] = $order->order_number;
+    $order->content['id'] = $order->order_id;
+    $order->content['order_created_date']['#markup'] = format_date($order->created, 'custom', 'j F Y, H:i');
+
+    // set the commerce customer billing info
+    //if the customer is a company, display company info
+    $order->content['commerce_customer_company'] = array();
+	$commerce_customer_billing = commerce_customer_profile_load($order->commerce_customer_billing['und'][0]['profile_id']);
+	$commerce_customer_profile = entity_metadata_wrapper('commerce_customer_profile', $commerce_customer_billing);
+	$field_societate = $commerce_customer_profile->field_societate->value();
+	$field_cui = $commerce_customer_profile->field_cui->value();
+	$field_j = $commerce_customer_profile->field_j->value();
+	$field_banca = $commerce_customer_profile->field_banca->value();
+	$field_telefon = $commerce_customer_profile->field_telefon->value();
+	if($field_societate != '' && $field_cui != '') {
+        $order->content['commerce_customer_billing_company'] = [
+            '#markup' =>  $field_societate . '<br/>' .
+                'R.C.: ' . $field_j . '<br/>' .
+                'C.U.I.: ' . $field_cui . '<br/>' .
+                'Banca: ' . $field_banca . '<br/>' .
+                'Telefon: ' . $field_telefon . '<br/>'
+        ];
+    }
+
+    // calculate how many products of a particular type were sold in the current command: x fruit trees, x roses, x others
+    $no_fruit_trees = $no_roses = $no_others = 0;
+    foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
+        // If the current line item actually no longer exists...
+        if (!$line_item_wrapper->value()) {
+            continue;
+        }
+        if ($line_item_wrapper->type->value() == 'product') {
+            $product_type = $line_item_wrapper->commerce_product->type->value();
+            $quantity = (int)$line_item_wrapper->quantity->value();
+            if ($product_type == 'pomi_fructiferi') {
+                $no_fruit_trees += $quantity;
+            }
+            elseif($product_type == 'trandafiri') {
+                $no_roses += $quantity;
+            }
+            else {
+                $no_others += $quantity;
+            }
+        }
+    }
+    $order->content['no_fruit_trees'] = [
+        '#markup' => $no_fruit_trees,
+    ];
+    $order->content['no_roses'] = [
+        '#markup' => $no_roses,
+    ];
+    $order->content['no_others'] = [
+        '#markup' => $no_others,
+    ];
+
+    if ($view_mode == "invoice") { // only when printing invoices
         $order->content['invoice_footer'] = array(
             '#markup' => isset($settings['invoice_footer']) ? $settings['invoice_footer'] : '',
         );
@@ -209,6 +264,32 @@ function commerce_vbo_printorders_commerce_order_view($order, $view_mode) {
         $order->content['invoice_logo'] = array(
             '#value' => variable_get('commerce_billy_pdf_logo', 'misc/druplicon.png'),
         );
+    }
+    if ($view_mode == "order") { // only when printing orders
+
+		$all_orders = commerce_order_load_multiple(array(), array('uid' => $order->uid));
+		//print '<pre>' . print_r($all_orders, true) . '</pre>';
+		unset($all_orders[$current_order_id]); // remove current order from array
+		$has_completed_orders = FALSE;
+		$has_cumulated_orders = FALSE;
+		$cumulated_orders_text = '';
+
+		foreach($all_orders as $o) {
+            if($o->status == 'completed') {
+                $has_completed_orders = TRUE;
+                $comenzi_finalizate_created_date[] = format_date($o->created, 'custom', 'M Y');
+            }
+            elseif($o->status == 'cumulata' && $o->created >= strtotime('- ' . $nr_luni_sezon . 'month') && $o->created >= $order->created) { // comanda cumulata este din sezonul curent -> este o comanda care a fost cumulata la comanda curenta -> putem extrage mesajul
+                $has_cumulated_orders = TRUE;
+                if(!empty($o->field_mesaj_order)) {
+                    //print '<pre>' . print_r($all_orders, true) . '</pre>';
+                    $cumulated_orders_text .= 'Comanda cumulata <strong>' . $o->order_number . '</strong> contine mesajul: <em>"' . $o->field_mesaj_order['und'][0]['safe_value'] . '"</em><br>';
+                }
+            }
+        }
+		if($has_completed_orders) print '<h3>Comenzi finalizate:</h3>' . implode(', ', $comenzi_finalizate_created_date);
+        else print '<h3>Nu mai are comenzi finalizate.</h3>';
+
     }
 }
 

@@ -15,39 +15,16 @@ $nr_luni_sezon = 5;
   <div class="customer">
   	<strong>Cumpărător</strong>
     <br/><br/>
+    <div class="commerce-customer-shipping">
+        <h3>Adresă de livrare</h3>
+        <?php print render($content['commerce_customer_shipping']); ?>
+    </div>
     <div class="commerce-customer-billing">
 		<h3>Adresă de facturare</h3>
-		<?php 
-    
-        print render($content['commerce_customer_billing']);
-        
-        // afiseaza informatiile societatii, daca este cazul
-        if(isset($order->commerce_customer_billing)) {
-            $commerce_customer_billing = commerce_customer_profile_load($order->commerce_customer_billing['und'][0]['profile_id']);
-            $commerce_customer_profile = entity_metadata_wrapper('commerce_customer_profile', $commerce_customer_billing);
-            $field_societate = $commerce_customer_profile->field_societate->value();
-            $field_cui = $commerce_customer_profile->field_cui->value();
-            $field_j = $commerce_customer_profile->field_j->value();
-            $field_banca = $commerce_customer_profile->field_banca->value();
-            $field_telefon = $commerce_customer_profile->field_telefon->value();
-            if($field_societate != '' && $field_cui != '') {
-                print '<div class="customer-company">';
-                    print '<strong>Societate</strong><br/>';
-                    print $field_societate . '<br/>';
-                    print 'R.C.: ' . $field_j . '<br/>';
-                    print 'C.U.I.: ' . $field_cui . '<br/>';
-                    print 'Banca: ' . $field_banca . '<br/>';
-                    print 'Telefon: ' . $field_telefon . '<br/>';	
-                print '</div>';	
-            }
-        }
-        ?>
-    </div>
-    <div class="commerce-customer-shipping">
-    	<h3>Adresă de livrare</h3>
-		<?php
-        print render($content['commerce_customer_shipping']);
-        ?>
+		<?php print render($content['commerce_customer_billing']);?>
+        <?php if(!empty($content['commerce_customer_billing_company'])): ?>
+            <div class="customer-company"><?php print render($content['commerce_customer_billing_company']); ?></div>
+        <?php endif; ?>
     </div>
     <div class="alte-comenzi">
     	<?php 
@@ -87,8 +64,6 @@ $nr_luni_sezon = 5;
     <?php
 	
 	$line_items_ids = views_get_view_result('commerce_line_item_table', 'block_line_item_custom_sort', $current_order_id);
-	
-	$nr_pomi_fructiferi = $nr_trandafiri = $nr_altele = 0;
 	foreach ($line_items_ids as $line_items_id) {
 		
 		$line_item = commerce_line_item_load($line_items_id->line_item_id);
@@ -99,32 +74,18 @@ $nr_luni_sezon = 5;
 		  continue;
 		}
 		print views_embed_view('commerce_line_item_table', 'block_1', $line_item_wrapper->line_item_id->value());
-		if ($line_item_wrapper->type->value() == 'product') {
-			//print '<pre>' . print_r($line_item_wrapper->commerce_product, true) . '</pre>';
-			$product_type = $line_item_wrapper->commerce_product->type->value();
-			$quantity = (int)$line_item_wrapper->quantity->value();
-			if ($product_type == 'pomi_fructiferi') {
-				$nr_pomi_fructiferi += $quantity;
-			}
-			elseif($product_type == 'trandafiri') {
-				$nr_trandafiri += $quantity;
-			}
-			else {
-				$nr_altele += $quantity;
-			}
-		}
 	}
 
 	?>
     </div>
     <div class="order-total"><?php print render($content['commerce_order_total']); ?></div>
   </div>
-  
+
   <div class="order-total-products">
-      <strong>Total produse</strong><br/>
-      <?php print '<strong>' . $nr_pomi_fructiferi . '</strong>' . ' x <strong>Pomi</strong>';?><br/>
-      <?php print '<strong>' . $nr_trandafiri . '</strong>' . ' x <strong>Trandafiri</strong>';?><br/>
-      <?php print '<strong>' . $nr_altele . '</strong>' . ' x <strong>Altele</strong>';?>
+    <strong>Total produse</strong><br/>
+    <strong><?php print render($content['no_fruit_trees']); ?> x Pomi</strong> <br/>
+    <strong><?php print render($content['no_roses']); ?> x Trandafiri</strong> <br/>
+    <strong><?php print render($content['no_others']); ?> x Altele</strong>
   </div>
   
   <div class="order-messages">
